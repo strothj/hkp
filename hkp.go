@@ -31,6 +31,7 @@ type Client struct {
 
 // NewClient creates a new Client using the provided keyserver and http.Client.
 // If client is nil a new one will be created.
+// Panics if keyserver is nil.
 func NewClient(keyserver *Keyserver, client *http.Client) *Client {
 	if keyserver == nil {
 		panic("keyserver nil")
