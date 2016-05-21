@@ -1,8 +1,40 @@
 package hkp
 
 import (
+	"net/http"
+	"net/url"
 	"testing"
 )
+
+func TestNewClient(t *testing.T) {
+	validKeyserver := &Keyserver{&url.URL{Scheme: "http", Host: "example.com", Path: ""}}
+	tests := []struct {
+		keyserver *Keyserver
+		client    *http.Client
+		panics    bool
+	}{
+		{nil, &http.Client{}, true},
+		{&Keyserver{}, &http.Client{}, true},
+		{validKeyserver, nil, false},
+		{validKeyserver, &http.Client{}, false},
+	}
+	for i, test := range tests {
+		if paniced := panics(func() { NewClient(test.keyserver, test.client) }); paniced != test.panics {
+			t.Fatalf("test(%v): panic: expected=%v actual=%v", i, test.panics, paniced)
+		}
+	}
+
+	expectedClient := &http.Client{}
+	hkp := NewClient(validKeyserver, expectedClient)
+	if hkp.client != expectedClient {
+		t.Fatal("passed in client not present")
+	}
+
+	hkp = NewClient(validKeyserver, nil)
+	if hkp.client == nil {
+		t.Fatal("expected a non-nil client")
+	}
+}
 
 func TestParseKeyserver(t *testing.T) {
 	tests := []struct {
@@ -78,4 +110,14 @@ func TestParseKeyID(t *testing.T) {
 	if keyID.String() != "0xBEEFBEEf" {
 		t.Fatalf("expected=0xBEEFBEEf actual=%v", keyID)
 	}
+}
+
+func panics(f func()) (b bool) {
+	defer func() {
+		if p := recover(); p != nil {
+			b = true
+		}
+	}()
+	f()
+	return
 }
