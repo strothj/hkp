@@ -4,6 +4,45 @@ import (
 	"testing"
 )
 
+func TestParseKeyserver(t *testing.T) {
+	tests := []struct {
+		url    string
+		parsed string
+		err    error
+	}{
+		{"ftp://example.com", "", UnsupportedSchemeError},
+		{"example.com", "http://example.com:11371", nil},
+		{"http://example.com/asdfasdf", "http://example.com", nil},
+		{"http://example.com", "http://example.com", nil},
+		{"https://example.com", "https://example.com", nil},
+		{"https://example.com/asdfasdf", "https://example.com", nil},
+		{"hkp://example.com", "http://example.com:11371", nil},
+		{"hkp://example.com/asdfasd", "http://example.com:11371", nil},
+		{"hkp://example.com:1234", "http://example.com:1234", nil},
+		{"hkp://example.com:1234/asdfasd", "http://example.com:1234", nil},
+		{"hkps://example.com", "https://example.com", nil},
+		{"hkps://example.com/asdfads", "https://example.com", nil},
+		{"hkps://example.com:1234", "https://example.com:1234", nil},
+		{"hkps://example.com:1234/asdf", "https://example.com:1234", nil},
+		{"https://[2001:cdba:0000:0000:0000:0000:3257:9652]", "https://[2001:cdba:0000:0000:0000:0000:3257:9652]", nil},
+		{"http://[2001:cdba:0000:0000:0000:0000:3257:9652]/asdf", "http://[2001:cdba:0000:0000:0000:0000:3257:9652]", nil},
+		{"hkp://[2001:cdba:0000:0000:0000:0000:3257:9652]/", "http://[2001:cdba:0000:0000:0000:0000:3257:9652]:11371", nil},
+	}
+	for _, test := range tests {
+		parsed, err := ParseKeyserver(test.url)
+		parsedURL := ""
+		if err != test.err {
+			t.Fatalf("url=%v err actual=%v expected=%v", test.url, err, test.err)
+		}
+		if parsed != nil {
+			parsedURL = parsed.url.String()
+		}
+		if parsedURL != test.parsed {
+			t.Fatalf("url=%v parsed actual=%v expected=%v", test.url, parsedURL, test.parsed)
+		}
+	}
+}
+
 func TestParseKeyID(t *testing.T) {
 	tests := []struct {
 		rawkeyid string
