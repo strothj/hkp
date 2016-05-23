@@ -38,12 +38,14 @@ func TestNewClient(t *testing.T) {
 	if hkp.client == nil {
 		t.Fatal("expected a non-nil client")
 	}
+	if hkp.keyserver != validKeyserver {
+		t.Fatal("passed in keyserver not present")
+	}
 }
 
-func TestGetKeysByID(t *testing.T) {
-	if paniced := panics(func() {}); !paniced {
-		t.Fatal("expected panic on nil context")
-	}
+func TestGetKeysByID_NilContext_Panics(t *testing.T) {
+	client := &Client{client: &http.Client{}}
+	_ = client
 }
 
 func TestParseKeyserver(t *testing.T) {
@@ -125,6 +127,7 @@ func TestParseKeyID(t *testing.T) {
 type testServer struct {
 	*httptest.Server
 	entities                 openpgp.EntityList
+	keyIds                   []string
 	search                   string
 	searchValuePresentCount  int
 	op                       string
@@ -184,6 +187,7 @@ func newSingleKeyServer() *testServer {
 	return &testServer{
 		Server:   httptest.NewServer(nil),
 		entities: openpgp.EntityList([]*openpgp.Entity{e}),
+		keyIds:   []string{e.PrimaryKey.KeyIdString()},
 	}
 }
 

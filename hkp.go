@@ -26,7 +26,8 @@ const (
 
 // Client is an OpenPGP HTTP Keyserver Protocol (HKP) client.
 type Client struct {
-	client *http.Client
+	client    *http.Client
+	keyserver *Keyserver
 }
 
 // NewClient creates a new Client using the provided keyserver and http.Client.
@@ -39,7 +40,7 @@ func NewClient(keyserver *Keyserver, client *http.Client) *Client {
 	if keyserver.url == nil {
 		panic("keyserver url nil")
 	}
-	c := &Client{client: client}
+	c := &Client{client: client, keyserver: keyserver}
 	if c.client == nil {
 		c.client = &http.Client{}
 	}
