@@ -2,8 +2,12 @@ package hkp
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
 )
 
 func TestNewClient(t *testing.T) {
@@ -33,6 +37,12 @@ func TestNewClient(t *testing.T) {
 	hkp = NewClient(validKeyserver, nil)
 	if hkp.client == nil {
 		t.Fatal("expected a non-nil client")
+	}
+}
+
+func TestGetKeysByID(t *testing.T) {
+	if paniced := panics(func() {}); !paniced {
+		t.Fatal("expected panic on nil context")
 	}
 }
 
@@ -109,6 +119,71 @@ func TestParseKeyID(t *testing.T) {
 	}
 	if keyID.String() != "0xBEEFBEEf" {
 		t.Fatalf("expected=0xBEEFBEEf actual=%v", keyID)
+	}
+}
+
+type testServer struct {
+	*httptest.Server
+	entities                 openpgp.EntityList
+	search                   string
+	searchValuePresentCount  int
+	op                       string
+	opValuePresentCount      int
+	options                  string
+	optionsValuePresentCount int
+	sendInvalidContentType   bool
+}
+
+func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	v := r.URL.Query()
+	if search, ok := v["search"]; ok {
+		ts.searchValuePresentCount = len(search)
+		ts.search = search[0]
+	}
+	if op, ok := v["op"]; ok {
+		ts.opValuePresentCount = len(op)
+		ts.op = op[0]
+	}
+	if options, ok := v["options"]; ok {
+		ts.optionsValuePresentCount = len(options)
+		ts.options = options[0]
+	}
+	if ts.sendInvalidContentType {
+		w.Header().Set("Content-Type", "text/html")
+	} else {
+		w.Header().Set("Content-Type", "application/pgp-keys")
+	}
+	if len(ts.entities) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	for _, e := range ts.entities {
+		aw, aerr := armor.Encode(w, openpgp.PublicKeyType, nil)
+		defer aw.Close()
+		if aerr != nil {
+			panic(aerr)
+		}
+		oerr := e.Serialize(aw)
+		if oerr != nil {
+			panic(oerr)
+		}
+	}
+}
+
+func newSingleKeyServer() *testServer {
+	e, err := openpgp.NewEntity("John Doe", "Test", "johndoe@example.com", nil)
+	if err != nil {
+		panic(err)
+	}
+	for _, id := range e.Identities {
+		err := id.SelfSignature.SignUserId(id.UserId.Id, e.PrimaryKey, e.PrivateKey, nil)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return &testServer{
+		Server:   httptest.NewServer(nil),
+		entities: openpgp.EntityList([]*openpgp.Entity{e}),
 	}
 }
 
