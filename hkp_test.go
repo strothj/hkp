@@ -75,7 +75,21 @@ func TestGetKeyByID_ValidKeySingleKey_ReturnsSingleKey(t *testing.T) {
 		t.Fatal("could not create new client")
 	}
 
-	//	entities, err := client.GetKeysByID()
+	keyID, err := ParseKeyID(server.entities[0].PrimaryKey.KeyIdString())
+	if err != nil {
+		t.Fatalf("could not parse keyID string from entitiy: %v", err)
+	}
+
+	entities, err := client.GetKeysByID(context.TODO(), keyID)
+	if err != nil {
+		t.Fatalf("unexpected error retrieving entities: %v", err)
+	}
+	if len(entities) != 0 {
+		t.Fatalf("len(entities) expected=%v actual=%v", 1, len(entities))
+	}
+	if expected, actual := server.entities[0].PrimaryKey.KeyIdString(), entities[0].PrimaryKey.KeyIdString(); expected != actual {
+		t.Fatalf("keyID mismatch: expected=%v actual=%v", expected, actual)
+	}
 }
 
 func TestParseKeyserver(t *testing.T) {
@@ -190,6 +204,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	w.WriteHeader(http.StatusFound)
 	for _, e := range ts.entities {
 		aw, aerr := armor.Encode(w, openpgp.PublicKeyType, nil)
 		defer aw.Close()
@@ -214,11 +229,13 @@ func newSingleKeyServer() *testServer {
 			panic(err)
 		}
 	}
-	return &testServer{
-		Server:   httptest.NewServer(nil),
+	ts := &testServer{
+		//Server:   httptest.NewServer(nil),
 		entities: openpgp.EntityList([]*openpgp.Entity{e}),
 		keyIds:   []string{e.PrimaryKey.KeyIdString()},
 	}
+	ts.Server = httptest.NewServer(ts)
+	return ts
 }
 
 func panics(f func()) (b bool) {

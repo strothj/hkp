@@ -2,13 +2,17 @@ package hkp
 
 import (
 	"encoding/hex"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 )
 
 const (
@@ -22,6 +26,10 @@ const (
 	// UnsupportedSchemeError is returned for keyserver addresses which have
 	// an unsupported scheme.
 	UnsupportedSchemeError = Error("unsupported scheme")
+)
+
+const (
+	baseRequestPath = "/pks/lookup"
 )
 
 // Client is an OpenPGP HTTP Keyserver Protocol (HKP) client.
@@ -55,7 +63,58 @@ func (c *Client) GetKeysByID(ctx context.Context, keyID *KeyID) (openpgp.EntityL
 	if keyID == nil {
 		panic("keyID nil")
 	}
-	return nil, nil
+	// TODO: Test for empty Client
+	var v url.Values = make(map[string][]string)
+	v.Add("op", "get")
+	v.Add("search", keyID.String())
+	v.Add("options", "mr")
+	url := &url.URL{
+		Scheme:   c.keyserver.url.Scheme,
+		Host:     c.keyserver.url.Host,
+		Path:     baseRequestPath,
+		RawQuery: v.Encode(),
+	}
+	resp, err := ctxhttp.Get(ctx, c.client, url.String())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		// TODO: Create appropriate error for key not found
+		return nil, errors.New("key not found")
+	}
+	if ct := resp.Header.Get("ContentType"); ct != "application/pgp-keys" {
+		// TODO: Create appropriate error for wrong content type
+		return nil, errors.New("wrong content type")
+	}
+	var blocks []*armor.Block
+	for {
+		b, _ := armor.Decode(resp.Body)
+		if b == nil {
+			break
+		}
+		blocks = append(blocks, b)
+	}
+	var entities []*openpgp.Entity
+	if len(blocks) > 0 {
+		r := packet.NewReader(blocks[0].Body)
+		for i := 1; i < len(blocks); i++ {
+			err := r.Push(blocks[i].Body)
+			if err != nil {
+				// TODO: Add clearer error message
+				return nil, err
+			}
+		}
+		for i := 0; i < len(blocks); i++ {
+			e, err := openpgp.ReadEntity(r)
+			if err != nil {
+				// TODO: Add clearer error message
+				return nil, err
+			}
+			entities = append(entities, e)
+		}
+	}
+	return openpgp.EntityList(entities), nil
 }
 
 // Keyserver is an OpenPGP HTTP Keyserver Protocol (HKP) keyserver.
