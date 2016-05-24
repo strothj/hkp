@@ -49,7 +49,13 @@ func NewClient(keyserver *Keyserver, client *http.Client) *Client {
 
 // GetKeysByID requests keys from the keyserver that match the provided keyID.
 func (c *Client) GetKeysByID(ctx context.Context, keyID *KeyID) (openpgp.EntityList, error) {
-	panic("Not Implemented")
+	if ctx == nil {
+		panic("context nil")
+	}
+	if keyID == nil {
+		panic("keyID nil")
+	}
+	return nil, nil
 }
 
 // Keyserver is an OpenPGP HTTP Keyserver Protocol (HKP) keyserver.

@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/net/context"
 )
 
 func TestNewClient(t *testing.T) {
@@ -45,7 +46,36 @@ func TestNewClient(t *testing.T) {
 
 func TestGetKeysByID_NilContext_Panics(t *testing.T) {
 	client := &Client{client: &http.Client{}}
-	_ = client
+	validID := &KeyID{key: "01234567"}
+	if p := panics(func() { client.GetKeysByID(nil, validID) }); !p {
+		t.Fatal("expected panic on nil context")
+	}
+}
+
+func TestGetKeysByID_NilKeyID_Panics(t *testing.T) {
+	client := &Client{client: &http.Client{}}
+	validContext := context.TODO()
+	if p := panics(func() { client.GetKeysByID(validContext, nil) }); !p {
+		t.Fatal("expected panic on nil keyID")
+	}
+}
+
+func TestGetKeyByID_ValidKeySingleKey_ReturnsSingleKey(t *testing.T) {
+	server := newSingleKeyServer()
+	defer server.Close()
+	keyserver, err := ParseKeyserver(server.URL)
+	if err != nil {
+		t.Fatalf("error parsing test server url: %v", err)
+	}
+	if keyserver == nil {
+		t.Fatal("could not parse test server url")
+	}
+	client := NewClient(keyserver, nil)
+	if client == nil {
+		t.Fatal("could not create new client")
+	}
+
+	//	entities, err := client.GetKeysByID()
 }
 
 func TestParseKeyserver(t *testing.T) {
