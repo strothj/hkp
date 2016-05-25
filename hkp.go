@@ -2,7 +2,6 @@ package hkp
 
 import (
 	"encoding/hex"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -95,7 +94,6 @@ func (c *Client) GetKeysByID(ctx context.Context, keyID *KeyID) (openpgp.EntityL
 	}
 	// TODO: Add proper parsing of Content-Type.
 	if ct := resp.Header.Get("Content-Type"); strings.Index(strings.ToLower(ct), "application/pgp-keys") == -1 {
-		log.Println(ct)
 		return nil, UnexpectedContentTypeError
 	}
 	// TODO: Verify keyIDs of returned entities match the search keyID.
