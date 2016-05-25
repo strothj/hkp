@@ -1,6 +1,7 @@
 package hkp
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,12 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/net/context"
 )
+
+// TODO: Add MultiKeyServer Test
+// TODO: Add Incorrect Content-Type Test
+// TODO: Add Key Not Found Test
+// TODO: Add Test for Returned Key's KeyID matches Search KeyID
+// TODO: Add Test for Empty client in GetKeysByIDs
 
 func TestNewClient(t *testing.T) {
 	validKeyserver := &Keyserver{&url.URL{Scheme: "http", Host: "example.com", Path: ""}}
@@ -41,6 +48,27 @@ func TestNewClient(t *testing.T) {
 	}
 	if hkp.keyserver != validKeyserver {
 		t.Fatal("passed in keyserver not present")
+	}
+}
+
+func TestGetKeysByID_DebianKey_ReturnsEntity(t *testing.T) {
+	debianJessieArchiveSigningKey := "126C0D24BD8A2942CC7DF8AC7638D0442B90D010"
+	ubuntuKeyServer := "keyserver.ubuntu.com"
+	ks, err := ParseKeyserver(ubuntuKeyServer)
+	if err != nil {
+		t.Fatalf("error parsing keyserver: %v", err)
+	}
+	keyID, err := ParseKeyID(debianJessieArchiveSigningKey)
+	if err != nil {
+		t.Fatalf("error parsing keyID: %v", err)
+	}
+	client := NewClient(ks, nil)
+	el, err := client.GetKeysByID(context.TODO(), keyID)
+	if err != nil {
+		t.Fatalf("error getting key: %v", err)
+	}
+	if len(el) != 1 {
+		t.Fatal("failed to get key")
 	}
 }
 
@@ -84,7 +112,7 @@ func TestGetKeyByID_ValidKeySingleKey_ReturnsSingleKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error retrieving entities: %v", err)
 	}
-	if len(entities) != 0 {
+	if len(entities) != 1 {
 		t.Fatalf("len(entities) expected=%v actual=%v", 1, len(entities))
 	}
 	if expected, actual := server.entities[0].PrimaryKey.KeyIdString(), entities[0].PrimaryKey.KeyIdString(); expected != actual {
@@ -170,8 +198,8 @@ func TestParseKeyID(t *testing.T) {
 
 type testServer struct {
 	*httptest.Server
-	entities                 openpgp.EntityList
-	keyIds                   []string
+	entities openpgp.EntityList
+	// keyIds                   []string
 	search                   string
 	searchValuePresentCount  int
 	op                       string
@@ -204,14 +232,18 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	w.WriteHeader(http.StatusFound)
+	w.WriteHeader(http.StatusOK)
 	for _, e := range ts.entities {
 		aw, aerr := armor.Encode(w, openpgp.PublicKeyType, nil)
 		defer aw.Close()
 		if aerr != nil {
 			panic(aerr)
 		}
-		oerr := e.Serialize(aw)
+		oerr := e.SerializePrivate(ioutil.Discard, nil) // Workaround Go Issue #6483
+		if oerr != nil {
+			panic(oerr)
+		}
+		oerr = e.Serialize(aw)
 		if oerr != nil {
 			panic(oerr)
 		}
@@ -230,9 +262,7 @@ func newSingleKeyServer() *testServer {
 		}
 	}
 	ts := &testServer{
-		//Server:   httptest.NewServer(nil),
 		entities: openpgp.EntityList([]*openpgp.Entity{e}),
-		keyIds:   []string{e.PrimaryKey.KeyIdString()},
 	}
 	ts.Server = httptest.NewServer(ts)
 	return ts
