@@ -12,11 +12,12 @@ import (
 	"golang.org/x/net/context"
 )
 
-// TODO: Add MultiKeyServer Test
-// TODO: Add Incorrect Content-Type Test
-// TODO: Add Key Not Found Test
-// TODO: Add Test for Returned Key's KeyID matches Search KeyID
-// TODO: Add Test for Empty client in GetKeysByIDs
+// TODO: Add MultiKeyServer Test in GetKeysByID
+// TODO: Add Incorrect Content-Type Test in GetKeysByID
+// TODO: Add Key Not Found Test in GetKeysByID
+// TODO: Add Test for Returned Key's KeyID matches Search KeyID in GetKeysByID
+// TODO: Add Test for Empty client in GetKeysByID
+// TODO: Add context cancelation test to GetKeysByID
 
 func TestNewClient(t *testing.T) {
 	validKeyserver := &Keyserver{&url.URL{Scheme: "http", Host: "example.com", Path: ""}}
